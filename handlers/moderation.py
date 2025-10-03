@@ -1,4 +1,3 @@
-# handlers/moderation.py
 import logging
 import time
 import re
@@ -17,7 +16,6 @@ router = Router()
 
 async def mute_user(bot: Bot, user_id: int, chat_id: int, duration: int, reason: str,
                   original_message_id: Optional[int] = None, caused_by_word: Optional[str] = None) -> bool:
-    """Замутить пользователя, записать в БД, отправить уведомление и запланировать размут."""
     try:
         user_info = await bot.get_chat(user_id)
         user_link = utils.format_user_link(user_info)
@@ -34,7 +32,6 @@ async def mute_user(bot: Bot, user_id: int, chat_id: int, duration: int, reason:
     )
 
     if not success:
-        # <<< ДОБАВЛЕНО await >>>
         if user_id in config.ADMIN_IDS and not await db.get_admin_trax_mode(user_id):
             keyboard = keyboards.get_admin_profanity_trakh_keyboard(original_message_id or 0, caused_by_word or "слово")
             text = (f"🤯 Ой! Я пытался замутить админа {user_link} за слово '{hd.bold(hd.quote(caused_by_word or '???'))}' "
@@ -51,7 +48,6 @@ async def mute_user(bot: Bot, user_id: int, chat_id: int, duration: int, reason:
     except Exception as e:
         logging.error(f"Ошибка при отправке уведомления о муте: {e}")
 
-    # <<< ДОБАВЛЕНО await >>>
     await db.add_mute(user_id, chat_id, unmute_timestamp, notification_msg_id)
     await utils.schedule_unmute(bot, user_id, chat_id, unmute_timestamp)
     return True
@@ -59,7 +55,6 @@ async def mute_user(bot: Bot, user_id: int, chat_id: int, duration: int, reason:
 async def unmute_user_func(bot: Bot, user_id: int, chat_id: int,
                            triggered_by_admin: bool = False, admin_id: Optional[int] = None,
                            triggered_by_schedule: bool = False) -> bool:
-    """Размутить пользователя, обновить сообщение, удалить из БД."""
     log_prefix = f"Unmute/{user_id}"
     try:
         user_info = await bot.get_chat(user_id)
@@ -67,12 +62,10 @@ async def unmute_user_func(bot: Bot, user_id: int, chat_id: int,
     except Exception:
         user_link = f"ID: {user_id}"
 
-    # <<< ДОБАВЛЕНО await >>>
     notification_msg_id = await db.get_mute_notification_id(user_id, chat_id)
     perms = types.ChatPermissions(can_send_messages=True, can_send_media_messages=True, can_send_other_messages=True, can_add_web_page_previews=True)
     success = await utils.safe_restrict_chat_member(bot, chat_id, user_id, perms, log_prefix=log_prefix)
 
-    # <<< ДОБАВЛЕНО await >>>
     await db.remove_mute(user_id, chat_id)
 
     if not triggered_by_schedule:
@@ -98,17 +91,12 @@ async def unmute_user_func(bot: Bot, user_id: int, chat_id: int,
     logging.info(f"[{log_prefix}] Пользователь успешно размучен.")
     return True
 
-# --- Обработчики ---
-
 @router.message(Command("trax"), F.from_user.id.in_(config.ADMIN_IDS), F.chat.type.in_({"supergroup", "private"}))
 async def trax_command(message: types.Message):
-    """Включает/выключает TRAX режим для администратора."""
     user_id = message.from_user.id
     try:
-        # <<< ДОБАВЛЕНО await >>>
         current_status = await db.get_admin_trax_mode(user_id)
         new_status = not current_status
-        # <<< ДОБАВЛЕНО await >>>
         await db.set_admin_trax_mode(user_id, new_status)
         status_text = "активирован ✅" if new_status else "деактивирован ❌"
         await message.reply(f"Режим администратора (TRAX) {status_text}")
@@ -118,7 +106,6 @@ async def trax_command(message: types.Message):
 
 @router.message(F.chat.id == config.CHAT_ID, F.from_user.id == config.USER_TO_DELETE)
 async def delete_specific_user_messages(message: types.Message, bot: Bot):
-    """Удаляет сообщения от конкретного пользователя."""
     await utils.safe_delete_message(bot, message.chat.id, message.message_id, log_prefix=f"DeleteUserMsg/{message.from_user.id}")
 
 @router.message(
@@ -126,11 +113,9 @@ async def delete_specific_user_messages(message: types.Message, bot: Bot):
     or_f(F.text, F.caption)
 )
 async def check_profanity(message: types.Message, bot: Bot):
-    """Проверяет сообщение на ненормативную лексику."""
     user_id = message.from_user.id
     text = (message.text or message.caption).lower()
 
-    # <<< ДОБАВЛЕНО await >>>
     if user_id in config.ADMIN_IDS and await db.get_admin_trax_mode(user_id):
         return
 
@@ -153,7 +138,6 @@ async def check_profanity(message: types.Message, bot: Bot):
 
 @router.callback_query(F.data.startswith("admin:profanity_trakh:"), F.from_user.id.in_(config.ADMIN_IDS))
 async def admin_profanity_trakh_callback(call: types.CallbackQuery, bot: Bot):
-     """Обработчик кнопки 'Трахнуть' при неудавшемся муте админа."""
      try:
          word = call.data.split(":")[-1]
          await utils.safe_edit_message_text(

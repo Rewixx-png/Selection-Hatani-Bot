@@ -1,7 +1,7 @@
-# handlers/common.py
 import logging
+import time
 from aiogram import F, Router, types
-from aiogram.filters import CommandStart
+from aiogram.filters import CommandStart, Command
 from aiogram.utils.markdown import html_decoration as hd
 
 import config
@@ -12,14 +12,10 @@ router = Router()
 
 @router.message(CommandStart(), F.chat.type == "private")
 async def cmd_start_private(message: types.Message):
-    """
-    Обработчик /start в личных сообщениях.
-    """
     user_id = message.from_user.id
     log_prefix = f"StartPM/{user_id}"
     logging.info(f"[{log_prefix}] Пользователь нажал /start в ЛС.")
 
-    # <<< ДОБАВЛЕНО await >>>
     await db.mark_user_started_pm(user_id)
 
     reply_text = (f"Отлично! ✅ Вы подтвердили возможность общения со мной.\n\n"
@@ -33,7 +29,16 @@ async def cmd_start_private(message: types.Message):
 
 @router.message(F.chat.type == "private", F.content_type.in_({types.ContentType.TEXT}))
 async def handle_private_message(message: types.Message):
-    """Обработчик любых других текстовых сообщений в ЛС."""
     if not message.text.startswith('/'):
         await message.reply(config.MSG_PRIVATE_CHAT_REDIRECT, disable_web_page_preview=True)
         logging.info(f"Replied to private text message from user {message.from_user.id}")
+
+@router.message(Command("hping"))
+async def cmd_hping(message: types.Message):
+    start_time = time.monotonic()
+    sent_message = await message.reply("🏓 Понг...")
+    end_time = time.monotonic()
+    latency = (end_time - start_time) * 1000
+    await sent_message.edit_text(
+        f"TPEBOP PIDOPACIK :3 ({int(latency)}ms)"
+    )

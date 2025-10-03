@@ -1,8 +1,7 @@
-# handlers/selection.py
 import logging
 import re
 import random
-from io import BytesIO 
+from io import BytesIO
 from playwright.async_api import async_playwright
 import redis.asyncio as redis
 
@@ -21,11 +20,7 @@ router = Router()
 router.message.filter(F.chat.id == config.CHAT_ID)
 router.callback_query.filter(F.message.chat.id == config.CHAT_ID)
 
-
 async def get_screenshot_playwright(url: str) -> bytes | None:
-    """
-    Делает скриншот URL с помощью Playwright, используя токен для обхода защиты.
-    """
     browser = None
     try:
         async with async_playwright() as p:
@@ -68,8 +63,6 @@ async def get_screenshot_playwright(url: str) -> bytes | None:
         if browser:
             await browser.close()
 
-
-# --- Начало отбора ---
 @router.callback_query(F.data == "selection:start")
 async def start_selection(call: types.CallbackQuery, state: FSMContext):
     user_id = call.from_user.id
@@ -91,12 +84,9 @@ async def start_selection(call: types.CallbackQuery, state: FSMContext):
         "➡️ Пожалуйста, пришлите ссылку на ваш TikTok профиль.",
         reply_markup=None
     )
-    # Запоминаем ID сообщения с просьбой, чтобы потом его удалить
     await state.update_data(prompt_message_id=call.message.message_id)
     await call.answer()
 
-
-# --- Шаг 1: Получение ссылки и создание скриншота ---
 @router.message(SelectionStates.waiting_for_tiktok_link, F.text)
 async def process_tiktok_link(message: types.Message, state: FSMContext, bot: Bot, redis: redis.Redis):
     user_id = message.from_user.id
@@ -106,7 +96,6 @@ async def process_tiktok_link(message: types.Message, state: FSMContext, bot: Bo
         await message.reply("⚠️ Пожалуйста, отправьте корректную и полную ссылку на TikTok профиль (начиная с https://).")
         return
 
-    # Удаляем старое сообщение с просьбой прислать ссылку
     data = await state.get_data()
     prompt_id = data.get("prompt_message_id")
     if prompt_id:
@@ -125,7 +114,6 @@ async def process_tiktok_link(message: types.Message, state: FSMContext, bot: Bo
 
     if not screenshot_bytes:
         await bot.send_message(message.chat.id, "❌ Не удалось получить скриншот профиля. Возможно, ссылка неверна, или TikTok временно заблокировал доступ. Попробуйте отправить ссылку еще раз.")
-        # Возвращаем пользователя на шаг ввода ссылки
         prompt_message = await bot.send_message(message.chat.id, "➡️ Пожалуйста, пришлите ссылку на ваш TikTok профиль.")
         await state.update_data(prompt_message_id=prompt_message.message_id)
         return
@@ -150,8 +138,6 @@ async def process_tiktok_link(message: types.Message, state: FSMContext, bot: Bo
     await state.update_data(screenshot_message_id=sent_photo.message_id)
     await state.set_state(SelectionStates.waiting_for_profile_confirmation)
 
-
-# --- Шаг 2: Обработка подтверждения профиля ---
 @router.callback_query(SelectionStates.waiting_for_profile_confirmation, F.data == "selection:confirm_profile_no")
 async def process_profile_confirmation_no(call: types.CallbackQuery, state: FSMContext):
     await call.message.delete()
@@ -159,7 +145,6 @@ async def process_profile_confirmation_no(call: types.CallbackQuery, state: FSMC
     await state.set_state(SelectionStates.waiting_for_tiktok_link)
     await state.update_data(prompt_message_id=prompt_message.message_id)
     await call.answer()
-
 
 @router.callback_query(SelectionStates.waiting_for_profile_confirmation, F.data == "selection:confirm_profile_yes")
 async def process_profile_confirmation_yes(call: types.CallbackQuery, state: FSMContext):
@@ -177,15 +162,11 @@ async def process_profile_confirmation_yes(call: types.CallbackQuery, state: FSM
         "✅ Отлично! Теперь финальный шаг: отправьте ваш лучший эдит в виде видеофайла.\n"
         f"❗️Ограничение по размеру: {config.MAX_EDIT_FILE_SIZE_MB} МБ."
     )
-    # Запоминаем ID сообщения с просьбой прислать эдит
     await state.update_data(prompt_message_id=prompt_msg.message_id)
     await state.set_state(SelectionStates.waiting_for_edit_video)
 
-
-# --- Шаг 3: Получение видео и создание заявки ---
 @router.message(SelectionStates.waiting_for_edit_video, F.video)
 async def process_edit_video(message: types.Message, state: FSMContext, bot: Bot, redis: redis.Redis):
-    """Обработка финального видео и отправка на модерацию в виде медиагруппы."""
     user_id = message.from_user.id
     log_prefix = f"EditVideo/{user_id}"
 
@@ -194,7 +175,6 @@ async def process_edit_video(message: types.Message, state: FSMContext, bot: Bot
         return
 
     user_data = await state.get_data()
-    # Удаляем старое сообщение с просьбой прислать эдит
     prompt_id = user_data.get("prompt_message_id")
     if prompt_id:
         await utils.safe_delete_message(bot, message.chat.id, prompt_id)

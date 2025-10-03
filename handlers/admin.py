@@ -1,4 +1,3 @@
-# handlers/admin.py
 import logging
 import re
 
@@ -16,16 +15,11 @@ router = Router()
 admin_chat_filter = F.message.chat.id == config.CHAT_ID
 router.callback_query.filter(admin_chat_filter)
 
-
 @router.callback_query(F.data.startswith("admin:approve:"), F.from_user.id.in_(config.ADMIN_IDS))
 async def approve_application_callback(call: types.CallbackQuery, bot: Bot):
-    """Обработчик одобрения заявки."""
     admin_id = call.from_user.id
     chat_id = call.message.chat.id
-    
-    # Сообщение, на которое ответила панель управления (то есть, медиагруппа)
     media_message = call.message.reply_to_message
-    
     try:
         applicant_id = int(call.data.split(":")[-1])
     except (IndexError, ValueError):
@@ -34,21 +28,15 @@ async def approve_application_callback(call: types.CallbackQuery, bot: Bot):
 
     log_prefix = f"Approve/{applicant_id}"
     logging.info(f"[{log_prefix}] Администратор {admin_id} одобрил заявку.")
-    
-    # Ищем caption в сообщениях медиагруппы
     caption = ""
     if media_message and media_message.media_group_id:
-        # Если это медиагруппа, ищем сообщение с caption
-        # В нашем случае это всегда второе сообщение (видео)
-        # Для простоты ищем caption в самом reply_to_message, если он там есть
         if media_message.caption:
             caption = media_message.caption
     
     tiktok_link_match = re.search(r"🔗 TikTok: <a href=\"(.*?)\">", caption)
     tiktok_link_from_caption = tiktok_link_match.group(1) if tiktok_link_match else "Не найдена"
-    program_from_caption = "Не указана" # Эта информация больше не собирается
+    program_from_caption = "Не указана"
 
-    # Удаляем и панель управления, и сообщение, на которое она отвечала (первое в медиагруппе)
     await utils.safe_delete_message(bot, chat_id, call.message.message_id, log_prefix=log_prefix)
     if media_message:
        await utils.safe_delete_message(bot, chat_id, media_message.message_id, log_prefix=log_prefix)
@@ -81,10 +69,8 @@ async def approve_application_callback(call: types.CallbackQuery, bot: Bot):
     await db.record_passed_user(applicant_id, tiktok_link_from_caption, program_from_caption)
     await call.answer("✅ Заявка одобрена.")
 
-
 @router.callback_query(F.data.startswith("admin:reject:"), F.from_user.id.in_(config.ADMIN_IDS))
 async def reject_application_callback(call: types.CallbackQuery, bot: Bot):
-    """Показывает кнопки выбора причины отклонения."""
     try:
         applicant_id = int(call.data.split(":")[-1])
     except (IndexError, ValueError):
@@ -99,18 +85,14 @@ async def reject_application_callback(call: types.CallbackQuery, bot: Bot):
 
     new_text = f"{original_text}\n\n---\n📝 {hd.bold('Выберите причину отклонения:')}"
     keyboard = keyboards.get_rejection_reason_keyboard(applicant_id)
-
-    # <<< ИСПРАВЛЕНО: Используем safe_edit_message_text, т.к. у сообщения нет caption >>>
     await utils.safe_edit_message_text(
         bot=bot, text=new_text, chat_id=call.message.chat.id, message_id=call.message.message_id,
         reply_markup=keyboard, log_prefix=f"RejectInit/{applicant_id}"
     )
     await call.answer("📝 Выберите причину отклонения.")
 
-
 @router.callback_query(F.data.startswith("admin:reject_reason:"), F.from_user.id.in_(config.ADMIN_IDS))
 async def handle_rejection_reason(call: types.CallbackQuery, bot: Bot):
-    """Обрабатывает выбор причины отклонения."""
     try:
         _, _, applicant_id_str, reason_code = call.data.split(":")
         applicant_id = int(applicant_id_str)
@@ -123,10 +105,8 @@ async def handle_rejection_reason(call: types.CallbackQuery, bot: Bot):
 
     log_prefix = f"RejectConfirm/{applicant_id}"
     logging.info(f"[{log_prefix}] Админ {call.from_user.id} отклонил заявку. Причина: {rejection_reason}")
-    
     media_message = call.message.reply_to_message
     caption = ""
-    # Ищем caption в сообщениях медиагруппы
     if media_message and media_message.media_group_id:
         if media_message.caption:
             caption = media_message.caption
@@ -143,7 +123,6 @@ async def handle_rejection_reason(call: types.CallbackQuery, bot: Bot):
     except (TelegramBadRequest, TelegramForbiddenError) as e:
         logging.warning(f"[{log_prefix}] Не удалось отправить ЛС об отклонении: {e}")
 
-    # Удаляем панель и медиа
     await utils.safe_delete_message(bot, call.message.chat.id, call.message.message_id, log_prefix=log_prefix)
     if media_message:
         await utils.safe_delete_message(bot, call.message.chat.id, media_message.message_id, log_prefix=log_prefix)
@@ -157,10 +136,8 @@ async def handle_rejection_reason(call: types.CallbackQuery, bot: Bot):
     await db.record_failed_user(applicant_id, tiktok_link_from_caption, program_from_caption, rejection_reason)
     await call.answer("❌ Заявка отклонена.")
 
-
 @router.callback_query(F.data.startswith("admin:unmute:"), F.from_user.id.in_(config.ADMIN_IDS))
 async def unmute_user_admin_callback(call: types.CallbackQuery, bot: Bot):
-    """Обработчик кнопки 'Размутить' для админа."""
     try:
         user_id_to_unmute = int(call.data.split(":")[-1])
     except (IndexError, ValueError):
@@ -190,10 +167,8 @@ async def unmute_user_admin_callback(call: types.CallbackQuery, bot: Bot):
                  logging.error(f"Ошибка при редактировании сообщения о неудавшемся размуте: {e}")
         await call.answer("⚠️ Не удалось размутить (возможно, уже размучен).", show_alert=True)
 
-
 @router.callback_query(F.data.startswith("admin:unban:"))
 async def unban_user_admin_callback(call: types.CallbackQuery, bot: Bot):
-    """Обработчик кнопки 'Снять блокировку' для админа."""
     member = await bot.get_chat_member(chat_id=call.message.chat.id, user_id=call.from_user.id)
     if not isinstance(member, (types.ChatMemberOwner, types.ChatMemberAdministrator)):
         await call.answer("⚠️ Эта кнопка доступна только администраторам чата.", show_alert=True)

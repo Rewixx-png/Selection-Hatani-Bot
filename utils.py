@@ -1,4 +1,3 @@
-# utils.py
 import logging
 import asyncio
 import time
@@ -17,25 +16,19 @@ from aiogram.exceptions import (
 import config
 import db
 
-# --- Форматирование ---
 def format_user_link(user: Union[types.User, types.Chat]) -> str:
-    """Форматирует ссылку на пользователя для HTML."""
     name_to_show = user.first_name or user.title or f"ID:{user.id}"
     name = hd.quote(str(name_to_show))
     return hd.link(name, f"tg://user?id={user.id}")
 
 def format_username(user: Union[types.User, types.Chat]) -> str:
-    """Возвращает @username или имя/название для HTML."""
     if user.username:
         return f"@{user.username}"
     else:
         name_to_show = user.first_name or user.title or f"ID:{user.id}"
         return hd.quote(str(name_to_show))
 
-# --- Безопасные операции с API ---
-
 async def safe_delete_message(bot: Bot, chat_id: int, message_id: int, log_prefix: str = ""):
-    """Безопасно удаляет сообщение, логируя ошибки."""
     prefix = f"[{log_prefix}] " if log_prefix else ""
     try:
         await bot.delete_message(chat_id, message_id)
@@ -49,10 +42,8 @@ async def safe_delete_message(bot: Bot, chat_id: int, message_id: int, log_prefi
 
 async def safe_edit_message_text(bot: Bot, text: str, chat_id: int, message_id: int,
                                  reply_markup=None, parse_mode='HTML', log_prefix: str = "") -> bool:
-    """Безопасно редактирует текст сообщения."""
     prefix = f"[{log_prefix}] " if log_prefix else ""
     try:
-        # <<< ИЗМЕНЕНО: Используем именованные аргументы для предотвращения ошибок >>>
         await bot.edit_message_text(
             text=text,
             chat_id=chat_id,
@@ -74,8 +65,6 @@ async def safe_edit_message_text(bot: Bot, text: str, chat_id: int, message_id: 
     except Exception as e:
         logging.exception(f"{prefix}Неизвестная ошибка при редактировании сообщения {message_id} в чате {chat_id}: {e}")
         return False
-
-# ... (остальной код файла utils.py без изменений) ...
 
 async def safe_edit_message_caption(bot: Bot, caption: str, chat_id: int, message_id: int,
                                     reply_markup=None, parse_mode='HTML', log_prefix: str = "") -> bool:

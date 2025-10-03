@@ -1,4 +1,3 @@
-# db.py
 import aiosqlite
 import logging
 from datetime import datetime, timezone
@@ -9,7 +8,6 @@ import config
 DATABASE_FILE = config.DATABASE_FILE
 
 async def create_tables():
-    """Создает таблицы в базе данных, если они не существуют."""
     try:
         async with aiosqlite.connect(DATABASE_FILE) as db:
             db.row_factory = aiosqlite.Row
@@ -53,7 +51,6 @@ async def create_tables():
                  logging.error(f"Не удалось добавить колонку started_pm: {alter_e}")
 
 async def set_user_selection_status(user_id: int, status: str):
-    """Устанавливает или обновляет статус отбора пользователя."""
     try:
         async with aiosqlite.connect(DATABASE_FILE) as db:
             timestamp = datetime.now(timezone.utc).isoformat()
@@ -64,7 +61,6 @@ async def set_user_selection_status(user_id: int, status: str):
         logging.error(f"Ошибка при установке статуса отбора для user_id {user_id}: {e}")
 
 async def get_user_selection_data(user_id: int) -> Optional[aiosqlite.Row]:
-    """Получает все данные о статусе отбора пользователя."""
     try:
         async with aiosqlite.connect(DATABASE_FILE) as db:
             db.row_factory = aiosqlite.Row
@@ -75,12 +71,10 @@ async def get_user_selection_data(user_id: int) -> Optional[aiosqlite.Row]:
         return None
 
 async def get_user_selection_status(user_id: int) -> Optional[str]:
-    """Получает текущий статус отбора пользователя."""
     data = await get_user_selection_data(user_id)
     return data['status'] if data else None
 
 async def mark_user_started_pm(user_id: int):
-    """Отмечает, что пользователь запустил бота в ЛС."""
     try:
         async with aiosqlite.connect(DATABASE_FILE) as db:
             await db.execute("INSERT OR IGNORE INTO selection_status (user_id, status, last_update, started_pm) VALUES (?, ?, ?, 0)",
@@ -91,12 +85,10 @@ async def mark_user_started_pm(user_id: int):
         logging.error(f"Ошибка при установке флага started_pm для user_id {user_id}: {e}")
 
 async def check_user_started_pm(user_id: int) -> bool:
-    """Проверяет, запускал ли пользователь бота в ЛС."""
     data = await get_user_selection_data(user_id)
     return bool(data and data['started_pm'] == 1)
 
 async def delete_user_selection_status(user_id: int):
-    """Удаляет запись о статусе отбора пользователя."""
     try:
         async with aiosqlite.connect(DATABASE_FILE) as db:
             await db.execute("DELETE FROM selection_status WHERE user_id = ?", (user_id,))
@@ -106,7 +98,6 @@ async def delete_user_selection_status(user_id: int):
         logging.error(f"Ошибка при удалении статуса отбора для user_id {user_id}: {e}")
 
 async def get_admin_trax_mode(admin_id: int) -> bool:
-    """Получает статус trax mode администратора."""
     try:
         async with aiosqlite.connect(DATABASE_FILE) as db:
             db.row_factory = aiosqlite.Row
@@ -118,7 +109,6 @@ async def get_admin_trax_mode(admin_id: int) -> bool:
         return False
 
 async def set_admin_trax_mode(admin_id: int, enabled: bool):
-    """Устанавливает статус trax mode администратора."""
     try:
         async with aiosqlite.connect(DATABASE_FILE) as db:
             await db.execute("REPLACE INTO admin_trax_mode (admin_id, trax_enabled) VALUES (?, ?)", (admin_id, 1 if enabled else 0))
@@ -127,7 +117,6 @@ async def set_admin_trax_mode(admin_id: int, enabled: bool):
         logging.error(f"Ошибка при установке trax mode для admin_id {admin_id}: {e}")
 
 async def record_passed_user(user_id: int, tiktok_link: Optional[str], edit_program: Optional[str]):
-    """Записывает пользователя в таблицу прошедших отбор."""
     try:
         async with aiosqlite.connect(DATABASE_FILE) as db:
             timestamp = datetime.now(timezone.utc).isoformat()
@@ -138,7 +127,6 @@ async def record_passed_user(user_id: int, tiktok_link: Optional[str], edit_prog
         logging.error(f"Ошибка при записи прошедшего пользователя {user_id}: {e}")
 
 async def record_failed_user(user_id: int, tiktok_link: Optional[str], edit_program: Optional[str], rejection_reason: str):
-    """Записывает пользователя в таблицу не прошедших отбор."""
     try:
         async with aiosqlite.connect(DATABASE_FILE) as db:
             timestamp = datetime.now(timezone.utc).isoformat()
@@ -149,7 +137,6 @@ async def record_failed_user(user_id: int, tiktok_link: Optional[str], edit_prog
         logging.error(f"Ошибка при записи не прошедшего пользователя {user_id}: {e}")
 
 async def add_mute(user_id: int, chat_id: int, unmute_timestamp: int, notification_message_id: Optional[int]):
-    """Добавляет или обновляет запись об активном муте."""
     try:
         async with aiosqlite.connect(DATABASE_FILE) as db:
             await db.execute("REPLACE INTO active_mutes (user_id, chat_id, unmute_timestamp, notification_message_id) VALUES (?, ?, ?, ?)", (user_id, chat_id, unmute_timestamp, notification_message_id))
@@ -158,7 +145,6 @@ async def add_mute(user_id: int, chat_id: int, unmute_timestamp: int, notificati
         logging.error(f"Ошибка при добавлении мута для user_id {user_id}: {e}")
 
 async def remove_mute(user_id: int, chat_id: int):
-    """Удаляет запись об активном муте."""
     try:
         async with aiosqlite.connect(DATABASE_FILE) as db:
             await db.execute("DELETE FROM active_mutes WHERE user_id = ? AND chat_id = ?", (user_id, chat_id))
@@ -167,7 +153,6 @@ async def remove_mute(user_id: int, chat_id: int):
         logging.error(f"Ошибка при удалении мута для user_id {user_id}: {e}")
 
 async def get_active_mutes() -> List[Tuple[int, int, int, Optional[int]]]:
-    """Возвращает список всех активных мутов."""
     try:
         async with aiosqlite.connect(DATABASE_FILE) as db:
             db.row_factory = aiosqlite.Row
@@ -180,7 +165,6 @@ async def get_active_mutes() -> List[Tuple[int, int, int, Optional[int]]]:
         return []
 
 async def get_mute_notification_id(user_id: int, chat_id: int) -> Optional[int]:
-    """Получает ID сообщения с уведомлением о муте."""
     try:
         async with aiosqlite.connect(DATABASE_FILE) as db:
             db.row_factory = aiosqlite.Row
@@ -192,7 +176,6 @@ async def get_mute_notification_id(user_id: int, chat_id: int) -> Optional[int]:
         return None
 
 async def delete_failed_user(user_id: int):
-    """Удаляет запись о пользователе из таблицы не прошедших отбор."""
     try:
         async with aiosqlite.connect(DATABASE_FILE) as db:
             await db.execute("DELETE FROM failed_users WHERE user_id = ?", (user_id,))

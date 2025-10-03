@@ -1,4 +1,3 @@
-# handlers/chat_events.py
 import logging
 import random
 
@@ -17,10 +16,8 @@ router = Router()
 router.message.filter(F.chat.id == config.CHAT_ID)
 router.callback_query.filter(F.message.chat.id == config.CHAT_ID)
 
-
 @router.message(F.new_chat_members)
 async def greet_new_member(message: types.Message, bot: Bot):
-    """Обработчик входа нового участника."""
     for user in message.new_chat_members:
         if user.id == bot.id:
             try:
@@ -36,7 +33,6 @@ async def greet_new_member(message: types.Message, bot: Bot):
         log_prefix = f"NewMember/{user_id}"
         logging.info(f"[{log_prefix}] Новый участник {user_name} присоединился к чату.")
 
-        # <<< ДОБАВЛЕНО await >>>
         status_data = await db.get_user_selection_data(user_id)
         status = status_data['status'] if status_data else None
 
@@ -60,7 +56,6 @@ async def greet_new_member(message: types.Message, bot: Bot):
             )
             try:
                 welcome_message = await message.answer(welcome_text, reply_markup=keyboard, parse_mode="HTML")
-                # <<< ДОБАВЛЕНО await >>>
                 await db.set_user_selection_status(user_id, 'pending')
                 await utils.schedule_kick(
                     bot=bot, user_id=user_id, chat_id=config.CHAT_ID,
@@ -75,10 +70,8 @@ async def greet_new_member(message: types.Message, bot: Bot):
         else:
             logging.error(f"[{log_prefix}] Не удалось ограничить права для нового пользователя {user_id}.")
 
-
 @router.callback_query(F.data.startswith("selection:start_verification:"))
 async def start_verification_callback(call: types.CallbackQuery, state: FSMContext):
-    """Обработчик нажатия кнопки '✅ Я уже написал /start в ЛС'."""
     user_id = int(call.data.split(":")[-1])
     callback_user_id = call.from_user.id
     log_prefix = f"StartVerification/{user_id}"
@@ -87,7 +80,6 @@ async def start_verification_callback(call: types.CallbackQuery, state: FSMConte
         await call.answer("⚠️ Эта кнопка предназначена для нового участника.", show_alert=True)
         return
 
-    # <<< ДОБАВЛЕНО await >>>
     if not await db.check_user_started_pm(user_id):
         await call.answer(f"Пожалуйста, сначала перейдите в ЛС к боту и напишите /start там!", show_alert=True)
         logging.info(f"[{log_prefix}] Пользователь нажал подтверждение, но не стартовал в ЛС.")
@@ -101,7 +93,6 @@ async def start_verification_callback(call: types.CallbackQuery, state: FSMConte
     try:
         await call.message.edit_text(agreement_text, reply_markup=keyboard)
         await state.set_state(SelectionStates.waiting_for_agreement)
-        # <<< ДОБАВЛЕНО await >>>
         await db.set_user_selection_status(user_id, 'started')
         logging.info(f"[{log_prefix}] Пользователю предложено соглашение, state: waiting_for_agreement.")
         await call.answer()
@@ -115,10 +106,8 @@ async def start_verification_callback(call: types.CallbackQuery, state: FSMConte
         logging.exception(f"[{log_prefix}] Ошибка при показе соглашения: {e}")
         await call.answer("Произошла ошибка.", show_alert=True)
 
-
 @router.callback_query(F.data.startswith("selection:confirm_agreement:"), SelectionStates.waiting_for_agreement)
 async def confirm_agreement_callback(call: types.CallbackQuery, state: FSMContext):
-    """Обработчик подтверждения соглашения."""
     user_id = int(call.data.split(":")[-1])
 
     if call.from_user.id != user_id:
@@ -142,10 +131,8 @@ async def confirm_agreement_callback(call: types.CallbackQuery, state: FSMContex
         logging.exception(f"[ConfirmAgreement/{user_id}] Ошибка при показе правил: {e}")
         await call.answer("Произошла ошибка.", show_alert=True)
 
-
 @router.callback_query(F.data.startswith("selection:confirm_rules:"), SelectionStates.waiting_for_rules)
 async def confirm_rules_callback(call: types.CallbackQuery, state: FSMContext, bot: Bot):
-    """Обработчик подтверждения правил и выдача прав на общение."""
     user_id = int(call.data.split(":")[-1])
     log_prefix = f"ConfirmRules/{user_id}"
 
@@ -166,7 +153,6 @@ async def confirm_rules_callback(call: types.CallbackQuery, state: FSMContext, b
             f"ℹ️ Добро пожаловать в {hd.bold('главное меню')}.\n"
             f"👉 Если хотите пройти отбор, нажмите соответствующую кнопку."
         )
-        # <<< ДОБАВЛЕНО await, так как функция стала async >>>
         keyboard = await keyboards.get_main_menu_keyboard(user_id)
         try:
             await call.message.edit_text(menu_text, reply_markup=keyboard)
