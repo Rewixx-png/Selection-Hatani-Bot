@@ -1,0 +1,4 @@
+aiogram==3.22.0
+aiosqlite==0.21.0
+playwright==1.44.0
+redis==6.4.0
